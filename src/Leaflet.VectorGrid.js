@@ -58,6 +58,7 @@ L.VectorGrid = L.GridLayer.extend({
 			}, this);
 		}
 		this._dataLayerNames = {};
+    this._cachedGeoJson = {};
 	},
 
 	createTile: function(coords, done) {
@@ -67,7 +68,7 @@ L.VectorGrid = L.GridLayer.extend({
 		var tileSize = this.getTileSize();
 		var renderer = this.options.rendererFactory(coords, tileSize, this.options);
 
-		var tileBounds = this._tileCoordsToBounds(coords);	
+		var tileBounds = this._tileCoordsToBounds(coords);
 
 		var vectorTilePromise = this._getVectorTilePromise(coords, tileBounds);
 
@@ -83,16 +84,16 @@ L.VectorGrid = L.GridLayer.extend({
 				for (var layerName in vectorTile.layers) {
 					this._dataLayerNames[layerName] = true;
 					var layer = vectorTile.layers[layerName];
-	
+
 					var pxPerExtent = this.getTileSize().divideBy(layer.extent);
-	
+
 					var layerStyle = this.options.vectorTileLayerStyles[ layerName ] ||
 					L.Path.prototype.options;
-	
+
 					for (var i = 0; i < layer.features.length; i++) {
 						var feat = layer.features[i];
 						var id;
-	
+
 						if (this.options.filter instanceof Function &&
 							!this.options.filter(feat.properties, coords.z)) {
 							continue;
@@ -101,6 +102,10 @@ L.VectorGrid = L.GridLayer.extend({
 						var styleOptions = layerStyle;
 						if (storeFeatures) {
 							id = this.options.getFeatureId(feat);
+              if (!(id in this._cachedGeoJson)) {
+                this._cachedGeoJson[id] = feat.toGeoJSON(coords.x, coords.y, coords.z);
+              }
+
 							var styleOverride = this._overriddenStyles[id];
 							if (styleOverride) {
 								if (styleOverride[layerName]) {
@@ -110,31 +115,31 @@ L.VectorGrid = L.GridLayer.extend({
 								}
 							}
 						}
-	
+
 						if (styleOptions instanceof Function) {
 							styleOptions = styleOptions(feat.properties, coords.z);
 						}
-	
+
 						if (!(styleOptions instanceof Array)) {
 							styleOptions = [styleOptions];
 						}
-	
+
 						if (!styleOptions.length) {
 							continue;
 						}
-	
+
 						var featureLayer = this._createLayer(feat, pxPerExtent);
-	
+
 						for (var j = 0; j < styleOptions.length; j++) {
 							var style = L.extend({}, L.Path.prototype.options, styleOptions[j]);
 							featureLayer.render(renderer, style);
 							renderer._addPath(featureLayer);
 						}
-	
+
 						if (this.options.interactive) {
 							featureLayer.makeInteractive();
 						}
-	
+
 						if (storeFeatures) {
 							renderer._features[id] = {
 								layerName: layerName,
@@ -142,15 +147,15 @@ L.VectorGrid = L.GridLayer.extend({
 							};
 						}
 					}
-	
+
 				}
-	
+
 			}
-		
+
 			if (this._map != null) {
 				renderer.addTo(this._map);
 			}
-	
+
 			L.Util.requestAnimFrame(done.bind(coords, null, null));
 
 		}.bind(this));
